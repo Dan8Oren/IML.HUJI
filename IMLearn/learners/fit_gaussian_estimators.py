@@ -20,9 +20,8 @@ for i in range(10, 1000, 10):
     all_mus.append(np.abs(UnivariateGaussian().fit(samples[:i]).mu_ - mu))
 fig2 = go.Figure(go.Scatter(x=list(range(len(all_mus))), y=all_mus),
                  dict(
-                     title="Absolute distance between the estimated "
-                           "expectation and"
-                           " true value as a function of sample size",
+                     title="Difference of estimated & true expectation as a "
+                           "function of sample size",
                      xaxis_title="Sample size",
                      yaxis_title="Difference of the expectation"))
 fig2.update_traces(mode='markers', marker=dict(line_width=1, symbol='circle',
@@ -35,7 +34,7 @@ sample_pdf_tuples = []
 for i in range(samples_amount):
     sample_pdf_tuples.append((samples[i], pdfs[i]))
 
-sample_pdf_tuples.sort(key=lambda t: t[1])
+sample_pdf_tuples.sort(key=lambda t: t[1])  # sort by pdf value
 fig3 = go.Figure(go.Scatter(x=[x[0] for x in sample_pdf_tuples],
                             y=[x[1] for x in sample_pdf_tuples]),
                  dict(title="Empirical PDF of the fitted model",
@@ -62,7 +61,6 @@ mg.fit(multivariate_samples)
 print(mg.mu_)
 print(mg.cov_)
 
-
 #   ######//  Question 5  //######
 
 result = np.zeros((200, 200))
@@ -80,10 +78,14 @@ for f1 in f1_values:
     row += 1
 heatmap = go.Heatmap(x=f3_values, y=f1_values, z=result)
 fig5 = go.Figure(data=heatmap, layout=dict(
-    title="Multivariate gaussian log-likelihood as function of expectation",
-    xaxis_title="f1 values",
-    yaxis_title="f3 values"))
+    title=r"$\text{Multivariate gaussian log-likelihood as function of "
+          r"expectation }(\mu)$",
+    xaxis_title=r"$\text{f3 values }(\mu_3)$",
+    yaxis_title=r"$\text{f1 values }(\mu_1)$"))
 
 # fig5.write_image("Question5.png")
 
 #   ######//  Question 6  //######
+min_indices = np.unravel_index(np.argmax(result, axis=None), result.shape)
+print(
+    [round(f3_values[min_indices[1]], 3), round(f1_values[min_indices[0]], 3)])

@@ -94,11 +94,9 @@ class UnivariateGaussian:
         if not self.fitted_:
             raise ValueError(
                 "Estimator must first be fitted before calling `pdf` function")
-        pdfs = []
-        for row in X:
-            pdfs.append((1 / np.sqrt(2 * math.pi * self.var_)) * \
-                        np.exp(math.pow((row - self.mu_), 2) / -2 * self.var_))
-        return np.array(pdfs)
+
+        return np.exp(-0.5 * (X - self.mu_) ** 2 / self.var_) / np.sqrt(
+            2 * np.pi * self.var_)
 
     @staticmethod
     def log_likelihood(mu: float, sigma: float, X: np.ndarray) -> float:
@@ -120,13 +118,8 @@ class UnivariateGaussian:
         log_likelihood: float
             log-likelihood calculated
         """
-        m = len(X)
-        exp_power = 0
-        for row in X:
-            exp_power += math.pow(row - mu, 2)
-        exp_power /= -2 * sigma
-        divider = math.pow(1 / np.sqrt(2 * math.pi * sigma), m / 2)
-        return math.log(divider) * exp_power
+        return np.sum(
+            -0.5 * (X - mu) ** 2 / sigma + (-0.5) * np.log(2 * np.pi * sigma))
 
 
 class MultivariateGaussian:
@@ -178,12 +171,7 @@ class MultivariateGaussian:
         Then sets `self.fitted_` attribute to `True`
         """
         divider = len(X)
-        for vec in X:
-            if self.mu_ is None:
-                self.mu_ = vec
-                continue
-            self.mu_ += vec
-        self.mu_ /= divider
+        self.mu_ = X.mean(axis=0)
         mat = (X - self.mu_).T @ (X - self.mu_)
         self.cov_ = mat / (divider - 1)
         self.fitted_ = True
@@ -211,12 +199,9 @@ class MultivariateGaussian:
         if not self.fitted_:
             raise ValueError(
                 "Estimator must first be fitted before calling `pdf` function")
-        exp_power = -0.5 * np.sum(
-            np.diagonal((X - self.mu_).dot(inv(self.cov_)).dot(
-                (X - self.mu_).transpose())))
-
-        return np.exp(exp_power) / ((2 * math.pi) ** len(self.mu_)) * det(
-            self.cov_) ** 0.5
+        exp_power = -0.5 * np.diagonal(
+            (X - self.mu_).dot(inv(self.cov_)).dot((X - self.mu_).transpose()))
+        return np.exp(exp_power) / np.sqrt(2 * np.pi * det(self.cov_))
 
     @staticmethod
     def log_likelihood(mu: np.ndarray, cov: np.ndarray,
