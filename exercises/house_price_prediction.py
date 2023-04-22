@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 import plotly.io as pio
 import plotly.express as px
+import plotly.graph_objects as go
 
+from IMLearn.learners.regressors import LinearRegression
 from IMLearn.utils import split_train_test
 
 pio.templates.default = "simple_white"
@@ -27,20 +29,33 @@ def preprocess_data(X: pd.DataFrame, y: Optional[pd.Series] = None):
     single
     DataFrame or a Tuple[DataFrame, Series]
     """
-    X = X.drop(["id", "date", "lat", "long", "sqft_lot15",
+    data = X
+    if y is not None:
+        data["price"] = y
+
+    data = data.drop(["id", "date", "lat", "long", "sqft_lot15",
                 "sqft_living15"], axis=1)
-    renovate_and_built = X[["yr_renovated", "yr_built"]]
-    X = X.drop(["yr_renovated", "yr_built"], axis=1)
-    X["yr_modified"] = renovate_and_built.max(axis=1)
+    renovate_and_built = data[["yr_renovated", "yr_built"]]
+    data = data.drop(["yr_renovated", "yr_built"], axis=1)
+    data["yr_modified"] = renovate_and_built.max(axis=1)
+    data["zipcode"] = data["zipcode"].astype(int)
+    data = pd.get_dummies(data,prefix='zipcode_',columns=['zipcode'])
+
+    return data.drop("price", axis=1), data["price"]
+
+
+def remove_bad_prices(X: pd.DataFrame):
+    X = X[X["price"] > 0]
+    return X
+
+
+def process_train_data(X: pd.DataFrame):
     for column in ["bathrooms", "floors", "sqft_lot", "sqft_basement"]:
         X = X[X[column] >= 0]
-    for column in ["price", "sqft_living", "sqft_above", "yr_modified"]:
+    for column in ["price", "sqft_living", "sqft_above", "yr_built"]:
         X = X[X[column] > 0]
 
-    if y is not None:
-        y = y.loc[X.index]
-
-    return X.drop("price", axis=1), X["price"]
+    return X
 
 
 def feature_evaluation(X: pd.DataFrame, y: pd.Series,
@@ -61,24 +76,41 @@ def feature_evaluation(X: pd.DataFrame, y: pd.Series,
     output_path: str (default ".")
         Path to folder in which plots are saved
     """
-    raise NotImplementedError()
+    data = X
+    for feature in data:
+        feature = X[feature]
+        pearson_corr = np.cov(feature, y) / (np.std(feature)*np.std(y))
+        print(pearson_corr)
+        pearson_corr = pearson_corr[0][0]
+        fig = go.Figure(go.Scatter(x=feature,
+                                    y=y),
+                         dict(title=f"Correlation between {feature.name} and the price,\n"
+                                    f"Pearson Correlation: {pearson_corr}",
+                              xaxis_title=f"{feature.name} Sample values",
+                              yaxis_title="price"))
+        fig.update_traces(mode='markers', marker=dict(line_width=1, symbol='circle',
+                                                       size=6))
+        fig.write_image(output_path+f"/{feature.name}-eval.png")
+
 
 
 if __name__ == '__main__':
     np.random.seed(0)
     df = pd.read_csv("../datasets/house_prices.csv")
-
+    df = remove_bad_prices(df)
     # Question 1 - split data into train and test sets
     price = df["price"]
     train, train_price, test, test_price = \
         split_train_test(df, price, .75)
 
     # Question 2 - Preprocessing of housing prices dataset
+    train = process_train_data(train)
     train, train_price = preprocess_data(train, train_price)
-
+    test, test_price = preprocess_data(test, test_price)
+    # data, price = preprocess_data(df)
 
     # Question 3 - Feature evaluation with respect to response
-    feature_evaluation(df.drop("price",axis=1), price)
+    # feature_evaluation(data, price,".\house_pricing_eval")
 
     # Question 4 - Fit model over increasing percentages of the overall
     # training data
@@ -90,3 +122,33 @@ if __name__ == '__main__':
     #   4) Store average and variance of loss over test set
     # Then plot average loss as function of training size with error ribbon
     # of size (mean-2*std, mean+2*std)
+    lr = LinearRegression(True)
+    percentages = list(range(10, 101))
+    times = 10
+    all_loss = np.ndarray((len(percentages), times))
+    for index, percent in enumerate(percentages):
+        for time in range(times):
+            samples = train.sample(frac=percent/100)
+            sample_responses = train_price.loc[samples.index]
+            all_loss[index, time] = lr.fit(samples, sample_responses)\
+                .loss(test, test_price)
+
+    all_mean_loss = np.mean(all_loss,axis=1)
+    all_std_loss = np.std(all_loss,axis=1)
+    upper_bound = all_mean_loss + 2 * all_std_loss
+    lower_bound = all_mean_loss - 2 * all_std_loss
+
+    trace = go.Scatter(x=percentages, y=all_loss, mode='lines', name='Function')
+
+    # Create trace for the confidence interval
+    ci_trace = go.Scatter(x=np.concatenate([percentages, percentages[::-1]]),
+                          y=np.concatenate([upper_bound, lower_bound[::-1]]),
+                          fill='toself',
+                          fillcolor='rgba(0,100,80,0.2)',
+                          line=dict(color='rgba(255,255,255,0)'),
+                          hoverinfo="skip",
+                          showlegend=False,
+                          name='Confidence Interval')
+    fig = go.Figure(data=[trace, ci_trace])
+    fig.write_image("endPlot.png")
+
