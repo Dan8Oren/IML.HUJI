@@ -2,9 +2,11 @@
 code\ examples/*.png
 code\ examples/*.gif
 *.png
+*.jpg
 *.gif
 figures/*.png
 .idea
 **__pycache__
 **.ipynb_checkpoints
 
+/exercises/lasso-Q2.jpg
