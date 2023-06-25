@@ -119,4 +119,44 @@ class GradientDescent:
                 Euclidean norm of w^(t)-w^(t-1)
 
         """
-        raise NotImplementedError()
+        w = f.weights.copy()
+        t = 0  # Iteration counter
+        best_w = np.copy(w)
+        if self.out_type_ == OUTPUT_VECTOR_TYPE[1]:
+            best_val = f.compute_output(X=X, y=y)
+        elif self.out_type_ == OUTPUT_VECTOR_TYPE[2]:
+            sum_w = np.zeros(X.shape[1])
+            sum_w += w
+
+        grad = f.compute_jacobian(X=X, y=y)
+        w_prev = np.copy(w)
+
+        while t < self.max_iter_:
+            eta = self.learning_rate_.lr_step()
+            w -= eta * grad
+            f.weights = w
+            val = f.compute_output(X=X, y=y)
+            grad = f.compute_jacobian(X=X, y=y)
+            delta = np.linalg.norm(w - w_prev)
+
+            self.callback_(solver=self, weights=w, val=val, grad=grad, t=t,
+                          eta=eta, delta=delta)
+
+            if self.out_type_ == OUTPUT_VECTOR_TYPE[1] and val < best_val:
+                best_val = val
+                best_w = np.copy(w)
+            elif self.out_type_ == OUTPUT_VECTOR_TYPE[2]:
+                sum_w += w
+
+            w_prev = np.copy(w)
+            t += 1
+
+            if delta < self.tol_:
+                break
+
+        if self.out_type_ == OUTPUT_VECTOR_TYPE[1]:
+            return best_w
+        elif self.out_type_ == OUTPUT_VECTOR_TYPE[2]:
+            return sum_w / t+1
+        else:   # self.out_type_ == "last"
+            return w
